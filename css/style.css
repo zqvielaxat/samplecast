@@ -1,0 +1,880 @@
+/* =========================================================
+   samplecast — estilos
+   CSS describe el ASPECTO. Está organizado así:
+     1) variables y base
+     2) HUD (los textos que flotan sobre el espacio)
+     3) tablero infinito y mundo
+     4) nodo principal (sample)
+     5) panel del analizador FFT
+     6) nodos de efectos (perillas, slider, puertos)
+     7) controles reutilizables (slider, botón de recentrar)
+     8) adaptación a pantallas chicas
+
+   IDEA CLAVE DEL DISEÑO: los nodos son elementos "absolutos" ubicados en
+   coordenadas del MUNDO. El navegador los mueve y agranda de una sola vez
+   gracias a la transformación CSS del contenedor #board-world. Por eso en
+   este archivo las posiciones están en píxeles "de mundo" (por ejemplo
+   left: -230px) y nunca dependen del tamaño de la ventana.
+   ========================================================= */
+
+/* 1) VARIABLES — cambiás un valor acá y cambia en toda la app */
+:root {
+  --bg: #e6e6e6;          /* fondo del espacio infinito */
+  --ink: #16161a;         /* líneas y textos principales */
+  --ink-soft: #7c7c85;    /* textos secundarios */
+  --node-fill: #fafafa;   /* relleno de los nodos */
+  --panel-fill: #6e6e73;  /* fondo del analizador */
+  --accent: #17e33c;      /* verde de los sliders y de "activo" */
+  --warn: #c2410c;
+  --font-title: "Syne", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;                 /* el tablero es lo único que se mueve: la página no scrollea */
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.45;
+}
+
+h1, h2, h3 { font-family: var(--font-title); margin: 0; letter-spacing: 0.01em; }
+
+/* 2) HUD: textos fijos, por encima del espacio */
+.hud {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  padding: 18px 22px;
+  z-index: 6;
+  pointer-events: none;             /* no bloquea los clics hacia el tablero */
+}
+.status { margin: 0; font-size: 15px; font-weight: 500; }
+
+/* 3) TABLERO INFINITO Y MUNDO */
+.board {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;               /* en pantallas táctiles, nosotros manejamos el arrastre */
+  background-color: var(--bg);
+  /* Una grilla de puntitos que se mueve con el paneo: da la sensación de "infinito".
+     La posición y el tamaño se actualizan desde js/patch-board.js */
+  background-image: radial-gradient(rgba(0, 0, 0, 0.17) 1.1px, transparent 1.1px);
+  background-size: 30px 30px;
+}
+.board.is-panning { cursor: grabbing; }
+
+.board-world {
+  position: absolute;
+  left: 0; top: 0;
+  transform-origin: 0 0;            /* el origen de la escala es la esquina del mundo */
+  will-change: transform;
+}
+
+/* Capa de cables: siempre pegada a la pantalla, en coordenadas de pantalla.
+   OJO: un <canvas> tiene tamaño propio (300x150), así que "inset: 0" NO alcanza:
+   hay que darle el ancho y el alto a mano para que cubra toda la ventana. */
+.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* 4) NODO PRINCIPAL (el sample) */
+/* El elemento no tiene tamaño: su origen (0,0) es el CENTRO de la píldora. */
+.node-main { position: absolute; width: 0; height: 0; }
+
+.node-title {
+  position: absolute;
+  left: 0; top: -196px;
+  transform: translateX(-50%);
+  max-width: 660px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: grab;
+}
+
+/* Píldora: la caja visible del nodo (460 x 212 en píxeles de mundo) */
+.node-body {
+  position: absolute;
+  left: -230px; top: -106px;
+  width: 460px; height: 212px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 20px 28px;
+  background: var(--node-fill);
+  border: 1.7px solid var(--ink);
+  border-radius: 999px;
+  cursor: grab;
+  transition: box-shadow 0.2s;
+}
+/* El área de la onda: un rectángulo blanco con las esquinas redondeadas, para
+   que la forma de onda se lea limpia sobre el fondo claro de la píldora. */
+.canvas-wave {
+  display: block;
+  width: 100%;
+  height: 128px;
+  background: #ffffff;
+  border-radius: 16px;
+}
+.canvas-wave.is-seekable { cursor: crosshair; }
+.time-readout {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;  /* los dígitos ocupan el mismo ancho: el reloj no "tiembla" */
+}
+
+/* Nos acordamos del nodo principal cuando volvemos con el botón de recentrar */
+.node-main.is-spotlight .node-body { box-shadow: 0 0 0 7px rgba(23, 227, 60, 0.4); }
+
+/* Fila de iconos del transporte */
+.transport {
+  position: absolute;
+  left: 0; top: 130px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+.icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px; height: 50px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #9b9ba1;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.icon-btn svg { width: 36px; height: 36px; fill: currentColor; }
+.icon-btn:hover:not(:disabled) { color: var(--ink); }
+.icon-btn:active:not(:disabled) { transform: scale(0.92); }
+.icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.icon-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 8px; }
+
+/* El botón de reproducir muestra un triángulo o dos barras según data-state */
+.icon-btn[data-state="play"] .icon-pause { display: none; }
+.icon-btn[data-state="pause"] .icon-play { display: none; }
+
+/* Interruptor de loop: el checkbox real está escondido dentro del icono */
+.icon-toggle input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.icon-toggle input:disabled { cursor: not-allowed; }
+.icon-toggle input:checked ~ svg { color: var(--accent); }
+
+/* Fila de controles debajo del transporte (el volumen; el loop se marca
+   arrastrando sobre la forma de onda) */
+.fields-row {
+  position: absolute;
+  left: 0; top: 198px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+}
+.volume { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.volume input { width: 150px; }
+.volume output { min-width: 3ch; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.node-meta {
+  position: absolute;
+  left: 0; top: 256px;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+/* 5) NODO DEL ANALIZADOR FFT */
+/* Es un nodo más del tablero: su centro se ubica con left/top (lo hace main.js)
+   y este translate lo centra, igual que los nodos de efectos. */
+.spectrum-panel {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 760px;
+  height: 300px;
+  transition: width 0.18s, height 0.18s, border-radius 0.18s;
+}
+.canvas-spectrum { display: block; width: 100%; height: 100%; border-radius: 24px; background: var(--panel-fill); }
+
+/* Botón para plegarlo: vive en la esquina del panel */
+.spectrum-toggle {
+  position: absolute;
+  top: 10px; right: 12px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 34px; height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.18s;
+}
+.spectrum-toggle svg { width: 22px; height: 22px; }
+.spectrum-toggle:hover { background: rgba(255, 255, 255, 0.36); }
+.spectrum-toggle:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* Plegado: el panel se achica hasta ser una pestaña HORIZONTAL, angosta y de
+   bordes redondeados. La flechita gira y queda en el medio, apuntando afuera. */
+.spectrum-panel.is-collapsed {
+  width: 240px;
+  height: 58px;
+  background: var(--panel-fill);
+  border-radius: 20px;
+}
+.spectrum-panel.is-collapsed .canvas-spectrum { display: none; }
+.spectrum-panel.is-collapsed .spectrum-toggle {
+  top: 50%; left: 50%; right: auto;
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+/* 6) NODOS DE EFECTOS (círculos) */
+/* Se ubican con left/top = centro del nodo y este translate los centra.
+   El tamaño (ancho y alto) lo pone main.js según cuántos parámetros tenga. */
+.fx-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 26px 30px;
+  text-align: center;
+  border: 1.7px solid var(--ink);
+  border-radius: 50%;
+  background: var(--node-fill);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.18s, opacity 0.18s;
+}
+.fx-title { font-size: 23px; font-weight: 600; letter-spacing: 0.01em; }
+.fx-summary { margin: 0; font-size: 12px; color: var(--ink-soft); max-width: 210px; }
+.fx-lock { margin: 0; font-size: 12px; color: var(--warn); }
+
+/* Estados del nodo:
+   is-off → el efecto existe pero NO está conectado (no está en la cadena de audio)
+   is-on  → está conectado y procesando
+   is-locked → todavía no se implementó (etapa futura) */
+.fx-node.is-off { opacity: 0.72; }
+.fx-node.is-on { box-shadow: 0 0 0 4px rgba(23, 227, 60, 0.35); }
+.fx-node.is-locked { border-style: dashed; opacity: 0.68; cursor: default; }
+.fx-node.is-locked .knob, .fx-node.is-locked .slider,
+.fx-node.is-locked .fx-select, .fx-node.is-locked .fx-number { cursor: not-allowed; }
+
+/* El nodo que está seleccionado (se borra con la tecla Supr): un anillo de
+   guiones alrededor, distinto del brillo verde de "conectado". */
+.fx-node.is-selected { outline: 2px dashed var(--ink); outline-offset: 7px; }
+
+/* Perillas: una fila, cada una con su etiqueta P1/P2 y su valor */
+.knob-grid { display: flex; gap: 16px; justify-content: center; }
+.knob-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.knob-tag { font-size: 13px; color: var(--ink-soft); letter-spacing: 0.08em; }
+.knob-name { font-size: 11.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+.knob-value { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* La perilla: un círculo que se gira arrastrando hacia arriba/abajo */
+.knob {
+  position: relative;
+  width: 54px; height: 54px;
+  border: 1.7px solid var(--ink);
+  border-radius: 50%;
+  background: #6f6f74;
+  cursor: ns-resize;
+  touch-action: none;          /* el arrastre de la perilla no debe scrollear la página */
+}
+.knob-indicator {
+  position: absolute;
+  left: 50%; bottom: 50%;
+  width: 2.8px; height: 19px;
+  margin-left: -1.4px;
+  background: var(--ink);
+  border-radius: 2px;
+  transform-origin: 50% 100%;  /* gira desde el centro de la perilla */
+  transform: rotate(0deg);
+}
+.knob:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.knob.is-disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Dry/Wet: nombre a la izquierda, valor a la derecha, slider debajo */
+.mix-row { display: flex; width: 100%; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.mix-row .mix-value { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.mix-wrap { width: 100%; }
+
+/* Lista desplegable (por ejemplo el "Tipo" de la Distortion) y campo numérico
+   (por ejemplo el "BPM" del Beat Repeater): el nombre a la izquierda y el
+   control a la derecha, con el mismo aire que el Dry/Wet. */
+.select-row, .number-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.fx-select {
+  max-width: 132px;
+  padding: 3px 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.fx-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fx-select:disabled { opacity: 0.55; }
+
+.fx-number {
+  width: 78px;
+  padding: 3px 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.fx-number:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fx-number:disabled { opacity: 0.55; }
+
+/* Grabadora: pantalla de onda, botones de grabar / recortar / descargar, contador */
+.recorder-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+/* La "pantalla" donde se dibuja la onda de la grabación. data-no-drag hace que
+   arrastrar acá NO mueva el nodo: sirve para elegir el recorte. */
+.rec-screen {
+  display: block;
+  width: 100%;
+  height: 150px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+}
+.rec-row { display: flex; gap: 8px; }
+.rec-row .btn-record { flex: 1; }
+/* Zoom de la onda: dos botones (− / +) con la etiqueta "zoom". */
+.rec-zoom { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 2px 0; }
+.rec-zoom-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+.btn-zoom {
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-zoom:hover:not(:disabled) { background: #eef7f0; }
+.btn-zoom:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-record,
+.btn-download,
+.btn-download-pack {
+  padding: 8px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+/* Botón pequeño "cut": enciende/apaga el modo de recorte. */
+.btn-cut,
+.btn-slice,
+.btn-click {
+  padding: 8px 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-cut.is-active,
+.btn-slice.is-active,
+.btn-click.is-active { background: var(--accent); color: #08110a; }
+.btn-cut:disabled,
+.btn-slice:disabled,
+.btn-click:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-record:hover,
+.btn-download:hover:not(:disabled),
+.btn-download-pack:hover:not(:disabled),
+.btn-cut:hover:not(:disabled),
+.btn-slice:hover:not(:disabled),
+.btn-click:hover:not(:disabled) { background: #eef7f0; }
+.btn-cut.is-active:hover,
+.btn-slice.is-active:hover,
+.btn-click.is-active:hover { background: var(--accent); }
+.btn-record.is-recording { background: var(--accent); color: #08110a; }
+.btn-download:disabled,
+.btn-download-pack:disabled { opacity: 0.45; cursor: not-allowed; }
+.rec-time { text-align: center; font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.rec-format { margin: 0; font-size: 11px; color: var(--ink-soft); letter-spacing: 0.04em; }
+
+/* Slice: etiqueta + valor arriba y el fader de sensibilidad debajo (el mismo
+   slider que usa el Dry/Wet y el volumen). */
+.slice-row { display: flex; width: 100%; align-items: baseline; justify-content: space-between; font-size: 13px; }
+.slice-row .slice-value { color: var(--ink-soft); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.slice-wrap { width: 100%; }
+.slice-wrap .slider { width: 100%; }
+
+/* 7) CONTROLES REUTILIZABLES */
+
+/* Slider: usamos un <input type="range"> de verdad (accesible con teclado) y lo
+   pintamos nosotros. El verde se dibuja con un degradado cuyo corte marca
+   --fill (lo actualiza main.js: "hasta acá va lo activo"). */
+/* Fader (barra deslizante): una pista gruesa con una manija ancha y rectangular,
+   estilo Ableton Live. La altura de 26px es el área de agarre: así es fácil de
+   "cazar" y un clic cerca no arrastra el nodo (la franja lleva data-no-drag). */
+.slider, .volume input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 26px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    var(--accent) 0 var(--fill, 50%),
+    #e4e4e4 var(--fill, 50%) 100%);
+  cursor: pointer;
+}
+.slider::-webkit-slider-runnable-track { height: 100%; background: transparent; }
+.slider::-webkit-slider-thumb, .volume input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 26px;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  background: #6f6f74;
+}
+.slider::-moz-range-track { height: 100%; background: transparent; }
+.slider::-moz-range-thumb, .volume input::-moz-range-thumb {
+  width: 12px; height: 24px;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  background: #6f6f74;
+}
+.slider:disabled { opacity: 0.55; }
+.slider:focus-visible, .volume input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Puertos: los circulitos por donde "entra" y "sale" el audio de cada nodo.
+   Su posición dentro del nodo la calcula js/patch-board.js. */
+.port {
+  position: absolute;
+  width: 17px; height: 17px;
+  transform: translate(-50%, -50%);
+  border: 1.6px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+  cursor: crosshair;
+  z-index: 4;
+  touch-action: none;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.port:hover { background: var(--accent); box-shadow: 0 0 0 4px rgba(23, 227, 60, 0.25); }
+/* Puerto válido mientras estamos arrastrando un cable */
+.port.is-target { background: var(--accent); box-shadow: 0 0 0 7px rgba(23, 227, 60, 0.3); }
+
+/* Botón para volver al nodo principal: esquina inferior derecha, blanco translúcido */
+.btn-recenter {
+  position: absolute;
+  right: 22px; bottom: 22px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 58px; height: 58px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+.btn-recenter svg { width: 27px; height: 27px; }
+.btn-recenter:hover { background: rgba(255, 255, 255, 0.95); }
+.btn-recenter:active { transform: scale(0.94); }
+.btn-recenter:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+/* 9) BARRA LATERAL (paleta de nodos) */
+/* Vive FUERA del mundo: es position:fixed, así que no se mueve ni se agranda con
+   el paneo/zoom. Está al costado izquierdo, centrada verticalmente. El propio
+   contenedor no captura clics (pointer-events: none); sí lo hacen sus hijos. */
+.palette {
+  position: fixed;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Primera barra: rectángulo redondeado vertical con las esferas-contenedor. */
+.palette-bar {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 12px;
+  background: rgba(22, 22, 26, 0.88);
+  border-radius: 26px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+/* Cada esfera es un CONTENEDOR de un tipo de nodos (nodos visuales, efectos,
+   presets). Por ahora muestran solo la abreviación del nombre. */
+.palette-cat {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: #fafafa;
+  color: var(--ink);
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.14s, background 0.14s, box-shadow 0.14s, color 0.14s;
+}
+.palette-cat:hover { transform: scale(1.09); }
+.palette-cat.is-active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px rgba(23, 227, 60, 0.5);
+}
+.palette-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Segunda barra: aparece a la derecha de la primera al elegir un contenedor. */
+.palette-panel {
+  pointer-events: auto;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  background: rgba(22, 22, 26, 0.88);
+  border-radius: 26px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(6px);
+  max-height: 78vh;
+  overflow-y: auto;
+}
+.palette-panel.is-open { display: flex; animation: palette-in 0.16s ease; }
+@keyframes palette-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.palette-title {
+  margin: 2px 4px 4px;
+  color: #fff;
+  font-family: var(--font-title);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* Panel "Info": texto de instrucciones, con ancho acotado y legible. */
+.info-panel {
+  width: 300px;
+  max-width: 68vw;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.info-line {
+  margin: 0;
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* Cada efecto de la paleta: un chip redondo y chico con su abreviación. */
+.palette-item {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: #fafafa;
+  color: var(--ink);
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: grab;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  line-height: 1.05;
+  touch-action: none;   /* manejamos el arrastre nosotros, no el navegador */
+  transition: transform 0.14s, box-shadow 0.14s, background 0.14s;
+}
+.palette-item:hover {
+  /* Resaltado igual que un nodo conectado en el lienzo (is-on) + crecimiento sutil. */
+  box-shadow: 0 0 0 4px rgba(23, 227, 60, 0.35);
+  transform: scale(1.06);
+  background: #fff;
+}
+.palette-item:active { cursor: grabbing; }
+
+/* El "fantasma" que sigue al mouse mientras arrastramos un nodo nuevo hacia el
+   lienzo. Es semi-transparente (hasta soltarlo) y crece velozmente al aparecer. */
+.palette-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 60;
+  pointer-events: none;   /* solo una imagen flotante: no debe tapar los clics */
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: #fafafa;
+  color: var(--ink);
+  font-family: var(--font-title);
+  font-size: 15px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  line-height: 1.05;
+  opacity: 0.68;
+  transform: translate(-50%, -50%) scale(0.6);
+  transition: transform 0.18s ease-out;
+  box-shadow: 0 0 0 6px rgba(23, 227, 60, 0.3);
+}
+.palette-ghost.is-grown { transform: translate(-50%, -50%) scale(1); }
+
+/* Animación de "crecer rápido" del nodo recién soltado en el lienzo. */
+@keyframes node-pop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.fx-node.just-spawned { animation: node-pop 0.16s ease-out; }
+
+/* ---------- Presets de cadenas (dentro del panel de la paleta) ---------- */
+
+.preset-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+}
+.preset-action {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: #fafafa;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.14s, background 0.14s;
+}
+.preset-action:hover { transform: scale(1.08); background: #fff; }
+.preset-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.preset-chip {
+  flex: 1;
+  min-width: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: #fafafa;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: var(--font-title);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  transition: background 0.14s, box-shadow 0.14s;
+}
+.preset-chip:hover { background: #fff; box-shadow: 0 0 0 4px rgba(23, 227, 60, 0.35); }
+/* Los de fábrica se distinguen: borde punteado y fondo translúcido. */
+.preset-chip.is-factory {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border-style: dashed;
+}
+.preset-chip.is-factory:hover { background: rgba(255, 255, 255, 0.3); }
+
+.preset-mini {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: #e6e6e6;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.14s, transform 0.14s;
+}
+.preset-mini:hover { background: #fff; transform: scale(1.08); }
+
+.preset-empty {
+  margin: 6px 4px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12px;
+}
+
+/* ---------- Ventanita (nombre / confirmación) ---------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(22, 22, 26, 0.4);
+  backdrop-filter: blur(2px);
+}
+.modal-box {
+  width: min(340px, calc(100vw - 48px));
+  background: #fafafa;
+  color: var(--ink);
+  border: 1.7px solid var(--ink);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+.modal-title { font-family: var(--font-title); font-size: 17px; font-weight: 700; }
+.modal-message { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.modal-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+.modal-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.modal-cancel, .modal-ok {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s, transform 0.14s;
+}
+.modal-cancel { background: #fff; color: var(--ink); }
+.modal-cancel:hover { background: #e6e6e6; }
+.modal-ok { background: var(--ink); color: #fff; }
+.modal-ok:hover { background: #000; }
+.modal-cancel:active, .modal-ok:active { transform: scale(0.96); }
+
+/* ---------- Aviso de compatibilidad y pie de versión ---------- */
+
+/* Se muestra SOLO si el navegador no soporta Web Audio o AudioWorklet. */
+.compat-warning {
+  position: fixed;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: 640px;
+  padding: 10px 16px;
+  background: var(--warn);
+  color: #fff;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+.compat-warning[hidden] { display: none; }
+
+/* Pie con el número de versión (la constante vive en js/main.js). */
+.app-version {
+  position: fixed;
+  left: 18px;
+  bottom: 12px;
+  z-index: 9;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 8) PANTALLAS CHICAS */
+@media (max-width: 700px) {
+  .hud { padding: 12px 14px; }
+  .btn-recenter { right: 14px; bottom: 14px; width: 50px; height: 50px; }
+  .btn-recenter svg { width: 23px; height: 23px; }
+}
+
+/* Respetar a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

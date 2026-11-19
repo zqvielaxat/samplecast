@@ -1,0 +1,40 @@
+# =========================================================
+#   sampleCast — archivos que NO se versionan
+# =========================================================
+
+# --- Sistema operativo ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# --- Editores de código ---
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+.history/
+*.swp
+
+# --- Audio de prueba (no se sube al repositorio) ---
+*.wav
+*.mp3
+*.ogg
+*.m4a
+*.flac
+*.aiff
+
+# --- Dependencias y compilación (el proyecto es HTML/CSS/JS puro) ---
+node_modules/
+dist/
+build/
+*.log
+
+# --- Pruebas locales y config de desarrollo (se quedan en el disco, no se publican) ---
+check/
+package.json

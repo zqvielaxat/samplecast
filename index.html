@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<!--
+  samplecast
+  Este archivo es el ESQUELETO de la página: define qué elementos existen.
+  No tiene lógica; la lógica vive en js/main.js. El aspecto vive en css/style.css.
+
+  IMPORTANTE — CÓMO ESTÁ ARMADA LA PANTALLA
+  Todo ocurre dentro de un "tablero" (board) que ocupa la ventana entera y se
+  puede recorrer infinitamente. Adentro hay un "mundo" (board-world) que se
+  mueve y se agranda con una transformación de CSS (translate + scale): los
+  nodos viven ahí, en coordenadas del mundo, y viajan juntos al navegar.
+
+    #board            → la ventana (no se mueve nunca)
+      #wires          → capa donde se dibujan los CABLES (en coordenadas de pantalla)
+      #board-world    → el mundo: acá adentro están los nodos (coordenadas del mundo)
+        #node-main    → NODO PRINCIPAL: sample + transporte + analizador
+        .fx-node      → NODOS DE EFECTOS (se generan desde js/effects/registry.js)
+      #btn-recenter   → botón para volver al nodo principal
+
+  Regla útil: cada elemento que JavaScript necesita encontrar tiene un `id`
+  (por ejemplo id="btn-play"). main.js los busca con ese nombre.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <!-- "viewport" hace que la página se adapte bien en celulares -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="samplecast: laboratorio de audio en el navegador. Cargá un sample, armá una cadena de efectos con cables y grabá o descargá el resultado, sin instalar nada.">
+  <title>samplecast</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+  <!-- Tipografías de Google Fonts. Si no hay internet, el navegador usa las de respaldo
+       definidas en el CSS y todo sigue funcionando. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Aviso de compatibilidad: main.js lo muestra solo si falta Web Audio o AudioWorklet. -->
+  <div id="compat-warning" class="compat-warning" hidden></div>
+
+  <!-- HUD: textos fijos que flotan sobre el espacio (no se mueven al navegar) -->
+  <header class="hud">
+    <!-- role="status": los lectores de pantalla anuncian los cambios de este texto -->
+    <p id="status" class="status" role="status">Cargá un sample para empezar.</p>
+  </header>
+
+  <!-- ================= BARRA LATERAL =================
+       Vive FUERA del mundo (position: fixed en el CSS), así que no se mueve ni
+       se agranda al recorrer el espacio. El contenido lo arma main.js. -->
+  <aside class="palette" id="palette" aria-label="Paleta de nodos"></aside>
+
+  <main class="board" id="board">
+
+    <div class="board-world" id="board-world">
+
+      <!-- ================= NODO PRINCIPAL: el sample ================= -->
+      <!-- Su origen (0,0) es el CENTRO de la píldora; todo lo demás se ubica alrededor. -->
+      <section class="node-main" id="node-main" data-node="main">
+        <h2 class="node-title" id="sample-name">UR SAMPLE</h2>
+
+        <!-- Píldora con la forma de onda -->
+        <!-- data-no-drag: al arrastrar acá NO se mueve el nodo; se selecciona el loop -->
+        <div class="node-body">
+          <canvas id="waveform" class="canvas-wave" data-no-drag title="Clic para saltar · Arrastrá para marcar el loop" aria-label="Forma de onda del sample. Un clic salta a esa posición; un arrastre marca el loop."></canvas>
+          <p class="time-readout" id="time-readout">0:00.0 / 0:00.0</p>
+        </div>
+
+        <!-- Fila de iconos: reproducir, reiniciar, grabar, loop, subir sample, descargar -->
+        <div class="transport">
+          <!-- Este botón cambia su dibujo según el estado (data-state lo pone main.js) -->
+          <button id="btn-play" class="icon-btn" type="button" data-state="play" disabled title="Reproducir" aria-label="Reproducir">
+            <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.2v13.6L19 12z"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="6" width="3.4" height="12"/><rect x="13.1" y="6" width="3.4" height="12"/></svg>
+          </button>
+
+          <button id="btn-restart" class="icon-btn" type="button" disabled title="Reiniciar" aria-label="Reiniciar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="7.5" width="9" height="9" rx="1.2"/></svg>
+          </button>
+
+          <button class="icon-btn" type="button" disabled title="Grabar — etapa futura" aria-label="Grabar (etapa futura)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5.6"/></svg>
+          </button>
+
+          <label class="icon-btn icon-toggle" data-no-drag title="Loop">
+            <input id="loop-enabled" type="checkbox" disabled aria-label="Loop">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6.2 9.6a6 6 0 0 1 10.3-2.7"/>
+              <path d="M17.8 14.4a6 6 0 0 1-10.3 2.7"/>
+              <path d="M16.9 3.6v3.5h-3.5"/>
+              <path d="M7.1 20.4v-3.5h3.5"/>
+            </svg>
+          </label>
+
+          <!-- Subir sample: el botón visible "clickea" al input de archivo oculto -->
+          <button id="btn-load" class="icon-btn" type="button" title="Cargar sample" aria-label="Cargar sample">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 19.5V5.5"/>
+              <path d="M6.3 11.2 12 5.5l5.7 5.7"/>
+            </svg>
+          </button>
+
+          <button class="icon-btn" type="button" disabled title="Descargar — etapa futura" aria-label="Descargar (etapa futura)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4.5v14"/>
+              <path d="M6.3 12.8 12 18.5l5.7-5.7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Loop y volumen. El inicio y el fin del loop se marcan arrastrando
+             sobre la forma de onda (ver main.js), por eso ya no hay cajitas. -->
+        <div class="fields-row" role="group" aria-label="Loop y volumen">
+          <label class="volume">
+            <span>Volumen</span>
+            <input id="volume" type="range" min="0" max="100" value="80">
+            <output id="volume-out">80</output>
+          </label>
+        </div>
+
+        <!-- Datos del archivo cargado (duración, canales, frecuencia) -->
+        <p class="node-meta" id="sample-duration">—</p>
+      </section>
+
+      <!-- ================= ANALIZADOR FFT (nodo independiente) ================= -->
+      <!-- Es un nodo más: se arrastra para moverlo y el botón ◀ lo pliega hasta
+           dejarlo como una pestaña angosta (ver main.js y style.css). -->
+      <section class="spectrum-panel" id="spectrum-panel" aria-label="Analizador de espectro">
+        <button id="btn-spectrum" class="spectrum-toggle" type="button" aria-expanded="true"
+                title="Ocultar el analizador" aria-label="Ocultar el analizador">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14.5 6.5 9 12l5.5 5.5"/>
+          </svg>
+        </button>
+        <canvas id="spectrum" class="canvas-spectrum" aria-label="Espectro de frecuencias en tiempo real"></canvas>
+      </section>
+
+      <!-- Los nodos de efectos se crean desde js/effects/registry.js (ver main.js) -->
+    </div>
+
+    <!-- Los cables se dibujan en esta capa, que siempre está "pegada" a la pantalla -->
+    <canvas class="wires" id="wires" aria-hidden="true"></canvas>
+
+    <!-- Volver al nodo principal: esquina inferior derecha -->
+    <button id="btn-recenter" class="btn-recenter" type="button" title="Ir al nodo principal" aria-label="Ir al nodo principal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="6.2"/>
+        <path d="M12 2.4v3.4M12 18.2v3.4M2.4 12h3.4M18.2 12h3.4"/>
+      </svg>
+    </button>
+  </main>
+
+  <!-- El input de archivo real está oculto; el botón de flecha para arriba lo "clickea" -->
+  <input id="file-input" type="file" accept="audio/*" hidden>
+
+  <!-- type="module" permite usar import/export entre archivos .js -->
+  <script type="module" src="js/main.js"></script>
+
+  <!-- Pie con el número de versión (la constante vive en js/main.js). -->
+  <footer class="app-version" id="app-version" aria-hidden="true"></footer>
+</body>
+</html>
