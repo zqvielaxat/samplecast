@@ -9,7 +9,7 @@ Está pensado para quien quiera **jugar y aprender** con audio sin instalar nada
 músicos, curiosos, estudiantes. No hay frameworks, ni backend, ni paso de
 compilación: es HTML, CSS y JavaScript puro (Web Audio API + Canvas 2D).
 
-> ▶ **Probalo acá:** _(enlace de la versión publicada — se completa al final)_
+> ▶ **Probalo acá:** https://zqvielaxat.github.io/samplecast/
 
 ## Funciones
 
