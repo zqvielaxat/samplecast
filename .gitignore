@@ -1,5 +1,5 @@
 # =========================================================
-#   sampleCast — archivos que NO se versionan
+#   Sample Lab — archivos que NO se versionan
 # =========================================================
 
 # --- Sistema operativo ---
@@ -34,7 +34,3 @@ node_modules/
 dist/
 build/
 *.log
-
-# --- Pruebas locales y config de desarrollo (se quedan en el disco, no se publican) ---
-check/
-package.json

@@ -1,47 +1,32 @@
 /* =========================================================
    slider.js — faders (barras deslizantes) estilo Ableton Live
 
-   El fader se controla SOLO con el movimiento HORIZONTAL del mouse:
+   PROBLEMA: un <input type="range"> pelado se agarra mal. La barra es finita, el
+   pulgar es chico y si el clic cae un poco al costado (o el mouse se sale de la
+   barra mientras arrastrás), el valor no acompaña: terminás haciendo varios
+   clics para ir de un extremo al otro.
 
-     - Clic sobre el fader y mover hacia la DERECHA  → sube el valor.
-     - Mover hacia la IZQUIERDA                      → baja el valor.
-     - El movimiento VERTICAL se ignora por completo.
+   SOLUCIÓN: nos quedamos con el <input> (sigue siendo accesible y funciona con
+   el teclado), pero le damos un manejo propio:
 
-   Imaginá una línea horizontal con el 100 % a la derecha y el 0 % a la
-   izquierda: el fader recorre esa escala según cuánto te movés hacia los
-   costados. Al hacer clic el valor NO salta a la posición del cursor: arranca
-   del valor que ya tenía y solo cambia cuando movés.
+     - Clic en CUALQUIER punto de la barra → el valor salta justo ahí.
+     - Arrastre HORIZONTAL → el valor sigue al mouse (absoluto, como un slider).
+     - Arrastre VERTICAL   → ajuste fino relativo: subir = más, bajar = menos
+       (recorrer todo el rango en ~190 píxeles de altura, como las perillas).
+     - Rueda del mouse → sube/baja de a un paso.
+     - Doble clic → vuelve al valor con el que nació la barra.
+     - Teclado (flechas, Home, End) → funciona nativo porque el input conserva el foco.
 
-   EL CÁLCULO ES INCREMENTAL: en cada movimiento medimos cuánto se movió el mouse
-   DESDE EL EVENTO ANTERIOR (no desde el clic) y lo sumamos al valor actual. Así,
-   si seguís empujando más allá del 100 o del 0, ese "sobrante" no se acumula:
-   apenas invertís la dirección, el valor empieza a cambiar de inmediato (porque
-   siempre partimos del valor que ya está limitado por el control).
-
-   Recorrer todo el rango lleva ~DRAG_TRAVEL píxeles de recorrido horizontal, así
-   que un movimiento chico NO dispara el valor al extremo: se puede regular con
-   precisión entre valores intermedios. La escala se convierte al rango de cada
-   control (no todos van de 0 a 100), y el valor siempre queda dentro de su
-   mínimo y máximo.
-
-   Usamos Pointer Events con setPointerCapture (indispensable para pantallas
-   táctiles) y, ADEMÁS, escuchamos el movimiento y el soltado en window: así el
-   arrastre no se corta jamás, ni siquiera si el cursor se sale del fader, se va
-   de la pantalla o el navegador no llega a capturar el puntero.
-
-   Extras: Shift = ajuste fino · doble clic = valor por defecto · rueda = pasos ·
-   flechas del teclado = funcionan nativas (el input conserva el foco).
+   TRUCO CLAVE: durante el arrastre escuchamos los movimientos en `window`, NO en
+   el input. Así no importa que el mouse se salga de la barra (ni del nodo): el
+   arrastre sigue hasta que soltás el botón. Es lo que hace que se sienta "suelto".
 
    OJO: el contenedor del fader debe llevar data-no-drag (lo pone main.js), para
    que agarrar cerca de la barra NO arrastre el nodo entero.
    ========================================================= */
 
-// Píxeles de recorrido HORIZONTAL necesarios para ir de mínimo a máximo.
-// Más grande = hay que mover más el mouse (ajuste más controlado/preciso).
-const DRAG_TRAVEL = 200;
-
-// Con Shift, cuántas veces más hay que mover el mouse para el mismo cambio.
-const FINE_FACTOR = 6;
+// Píxeles de arrastre vertical necesarios para recorrer todo el rango.
+const DRAG_TRAVEL = 190;
 
 /**
  * Hace que un <input type="range"> responda a un clic y a un arrastre fluidos.
@@ -67,6 +52,13 @@ export function enableFader(input) {
     return Math.min(max, Math.max(min, Math.round(raw / step) * step));
   }
 
+  /** 0 = borde izquierdo, 1 = borde derecho (null si la barra no se ve). */
+  function fractionAtX(clientX) {
+    const rect = input.getBoundingClientRect();
+    if (rect.width === 0) return null;
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  }
+
   /** Cambia el valor y avisa a quien escuche el evento "input" (main.js). */
   function setValue(value) {
     if (value === Number(input.value)) return;
@@ -78,59 +70,59 @@ export function enableFader(input) {
 
   const startDrag = (event) => {
     if (input.disabled) return;
-    event.preventDefault(); // nosotros manejamos el arrastre, no el navegador
+    event.preventDefault(); // nos quedamos con el arrastre nosotros
     input.focus();          // para que sigan andando las flechas del teclado
 
-    // Capturamos el puntero: de acá en adelante los eventos de movimiento y de
-    // soltado llegan A ESTE elemento, aunque el cursor se salga de la barra o
-    // llegue al borde de la pantalla (y también en pantallas táctiles).
-    try {
-      input.setPointerCapture(event.pointerId);
-    } catch {
-      // El puntero ya se soltó (o es un evento de prueba): seguimos igual.
-    }
+    const { min, max, step } = range();
+    const fraction = fractionAtX(event.clientX);
+    if (fraction === null) return;
 
-    // Guardamos solo la última posición HORIZONTAL del mouse. El valor actual se
-    // lee del propio input en cada movimiento (eso hace el cálculo "incremental").
-    drag = { pointerId: event.pointerId, lastX: event.clientX };
+    const startValue = min + fraction * (max - min);
+    drag = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startValue,
+      min,
+      max,
+      step,
+    };
+
+    // Un clic ya salta al punto tocado (y de ahí sigue el arrastre si no soltás).
+    setValue(snap(startValue, { min, max, step }));
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
   };
 
   const onMove = (event) => {
     if (!drag) return;
-    const { min, max, step } = range();
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    const { min, max, step } = drag;
 
-    // Cuánto se movió HORIZONTALMENTE desde el evento anterior.
-    const dx = event.clientX - drag.lastX; // positivo = derecha, negativo = izquierda
-    drag.lastX = event.clientX;
-    if (dx === 0) return;
+    let raw;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      // Dominante horizontal: el valor sigue la posición del mouse (absoluto).
+      const fraction = fractionAtX(event.clientX);
+      if (fraction === null) return;
+      raw = min + fraction * (max - min);
+    } else {
+      // Dominante vertical: ajuste fino relativo (arriba = más).
+      raw = drag.startValue + (drag.startY - event.clientY) * (max - min) / DRAG_TRAVEL;
+    }
 
-    // dx / travel es la FRACCIÓN del rango que avanzamos en este movimiento.
-    // Multiplicada por (max - min) convierte ese recorrido a la escala del
-    // control (que no siempre va de 0 a 100). Con Shift, el mismo movimiento
-    // produce un cambio más chico: ajuste fino.
-    const travel = event.shiftKey ? DRAG_TRAVEL * FINE_FACTOR : DRAG_TRAVEL;
-    const next = Number(input.value) + (dx / travel) * (max - min);
-
-    setValue(snap(next, { min, max, step }));
+    setValue(snap(raw, { min, max, step }));
   };
 
-  const endDrag = (event) => {
-    if (!drag) return;
-    const pointerId = drag.pointerId;
+  const endDrag = () => {
     drag = null;
-    try {
-      input.releasePointerCapture(pointerId);
-    } catch { /* ya se liberó */ }
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", endDrag);
+    window.removeEventListener("pointercancel", endDrag);
   };
 
-  // El "clic" se escucha en el input; el movimiento y el soltado, en window. Así
-  // el arrastre sigue aunque el cursor salga de la barra o de la pantalla. Cada
-  // fader registra su listener, pero solo actúa el que está siendo arrastrado
-  // (el único con `drag` distinto de null).
   input.addEventListener("pointerdown", startDrag);
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", endDrag);
-  window.addEventListener("pointercancel", endDrag);
 
   // Rueda: un paso por "clic" (shift = pasos grandes). Evitamos que la página
   // (o el tablero) haga scroll/zoom a la vez.

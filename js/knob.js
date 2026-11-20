@@ -3,32 +3,22 @@
 
    Una perilla es un control que se gira. Con el mouse NO la giramos en círculo
    (es incómodo): la convención de los programas de audio es arrastrar hacia
-   ARRIBA para subir el valor y hacia ABAJO para bajarlo (se mueve en el eje Y).
-   El dibujo de la rayita acompaña el valor para que se vea de un vistazo dónde
-   está parada.
+   ARRIBA para subir el valor y hacia ABAJO para bajarlo. El dibujo de la rayita
+   acompaña el valor para que se vea de un vistazo dónde está parada.
 
-   EL CÁLCULO ES INCREMENTAL: en cada movimiento medimos cuánto se movió el mouse
-   DESDE EL EVENTO ANTERIOR y lo sumamos al valor actual. Así, si te pasás del
-   máximo o del mínimo, el sobrante no se acumula: al invertir la dirección, la
-   perilla reacciona de inmediato.
-
-   Recorrer todo el rango lleva ~DRAG_TRAVEL píxeles de movimiento vertical, así
-   que se puede ajustar con precisión. Con Shift, el mismo movimiento produce un
-   cambio más chico (ajuste fino).
-
-   Usamos Pointer Events con setPointerCapture y escuchamos el movimiento en
-   window: el arrastre no se corta aunque el cursor salga de la perilla o de la
-   pantalla, y funciona en pantallas táctiles. El elemento tiene role="slider":
-   para el navegador (y un lector de pantalla) es un control de verdad, con sus
-   flechas, Home y End.
+   Detalles que hacen que se sienta bien:
+     - El arrastre es "relativo": guardamos el valor al empezar y calculamos
+       cuánto cambió. Así no importa dónde la agarraste dentro de la perilla.
+     - Igual que la de un equipo de audio real, recorre todo el rango en unos
+       190 píxeles de movimiento: se puede ajustar con precisión.
+     - El elemento tiene role="slider": para el navegador (y para un lector de
+       pantalla) es un control de verdad, con sus flechas, Home y End.
    ========================================================= */
 
 // Cuánto gira la rayita, en grados, hacia cada lado (el total es 280°)
 const ANGLE_RANGE = 140;
 // Píxeles de arrastre vertical necesarios para recorrer todo el rango
 const DRAG_TRAVEL = 190;
-// Con Shift, cuántas veces más hay que mover el mouse para el mismo cambio.
-const FINE_FACTOR = 6;
 
 /**
  * Crea una perilla.
@@ -87,34 +77,21 @@ export function createKnob({ min, max, step = 1, value, label = "", onChange = (
   el.addEventListener("pointerdown", (event) => {
     if (disabled) return;
     event.preventDefault();
-    // Capturamos el puntero: en pantallas táctiles el arrastre sigue aunque el
-    // dedo se salga de la perilla. Para el mouse, además escuchamos en window.
     try { el.setPointerCapture(event.pointerId); } catch { /* puntero ya liberado */ }
-    // Guardamos solo la última altura: el cálculo es incremental (ver onMove).
-    drag = { pointerId: event.pointerId, lastY: event.clientY };
+    // Guardamos el punto de partida: el movimiento será relativo a esto.
+    drag = { startY: event.clientY, startValue: current };
   });
 
-  const onMove = (event) => {
+  el.addEventListener("pointermove", (event) => {
     if (!drag) return;
-    // Cuánto se movió VERTICALMENTE desde el evento anterior.
-    const dy = drag.lastY - event.clientY;               // positivo = el mouse subió
-    drag.lastY = event.clientY;
-    if (dy === 0) return;
-    // dy / travel es la FRACCIÓN del rango que avanzamos. Con Shift, más fino.
-    const travel = event.shiftKey ? DRAG_TRAVEL * FINE_FACTOR : DRAG_TRAVEL;
-    setValue(current + (dy / travel) * (max - min));
-  };
+    const movedUp = drag.startY - event.clientY;               // positivo = el mouse subió
+    const fraction = movedUp / DRAG_TRAVEL;                    // cuánto del rango recorrimos
+    setValue(drag.startValue + fraction * (max - min));
+  });
 
-  const endDrag = (event) => {
-    if (!drag) return;
-    const pointerId = drag.pointerId;
-    drag = null;
-    try { el.releasePointerCapture(pointerId); } catch { /* ya se liberó */ }
-  };
-
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", endDrag);
-  window.addEventListener("pointercancel", endDrag);
+  const endDrag = () => { drag = null; };
+  el.addEventListener("pointerup", endDrag);
+  el.addEventListener("pointercancel", endDrag);
 
   /* ---------- Teclado (sin mouse también se puede) ---------- */
   el.addEventListener("keydown", (event) => {

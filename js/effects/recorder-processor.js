@@ -19,10 +19,10 @@
    (que es lo que ya llega gratis) y recién al final juntamos todo.
 
    TOPE DE SEGURIDAD: si nadie aprieta "Parar", la grabación no puede crecer para
-   siempre. A los 2 minutos se corta sola y se manda lo grabado.
+   siempre. A los 60 segundos se corta sola y se manda lo grabado.
    ========================================================= */
 
-const MAX_SECONDS = 120;
+const MAX_SECONDS = 60;
 
 class RecorderProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -38,7 +38,7 @@ class RecorderProcessor extends AudioWorkletProcessor {
     this.channelCount = 0;
     this.recordedFrames = 0;
     this.wasRecording = false;
-    this.full = false;       // ¿ya llegamos al tope de 2 min?
+    this.full = false;       // ¿ya llegamos al tope de 60 s?
     this.sent = false;       // ¿ya mandamos el resultado? (para no mandarlo dos veces)
   }
 
@@ -48,8 +48,9 @@ class RecorderProcessor extends AudioWorkletProcessor {
 
     // 0 → 1: arranca una grabación nueva (descarta la anterior, si había).
     if (recording && !this.wasRecording) {
+      this.channelCount = input && input.length ? input.length : 0;
       this.chunks = [];
-      this.channelCount = 0;   // todavía no sabemos cuántos canales van a llegar
+      for (let ch = 0; ch < this.channelCount; ch++) this.chunks.push([]);
       this.recordedFrames = 0;
       this.full = false;
       this.sent = false;
@@ -60,14 +61,6 @@ class RecorderProcessor extends AudioWorkletProcessor {
 
     this.wasRecording = recording;
 
-    // Si la señal recién aparece AHORA (por ejemplo, se armó la grabación antes
-    // de darle play), tomamos su cantidad de canales en este momento en vez de
-    // quedarnos con 0 y no poder capturar nada.
-    if (recording && input && input.length > 0 && this.channelCount === 0) {
-      this.channelCount = input.length;
-      for (let ch = 0; ch < this.channelCount; ch++) this.chunks.push([]);
-    }
-
     // Copiamos lo que entra, si hay entrada y todavía hay lugar.
     if (recording && input && input.length > 0 && !this.full) {
       const blockLength = input[0].length;
@@ -75,14 +68,14 @@ class RecorderProcessor extends AudioWorkletProcessor {
       const take = room < blockLength ? room : blockLength;
 
       if (take < blockLength) this.full = true;
-      if (take > 0 && this.channelCount > 0) {
+      if (take > 0) {
         for (let ch = 0; ch < this.channelCount && ch < input.length; ch++) {
           this.chunks[ch].push(input[ch].slice(0, take));
         }
         this.recordedFrames += take;
       }
 
-      // Si se llenó (tope de 2 min), mandamos sin esperar a que aprieten "Parar".
+      // Si se llenó (tope de 60 s), mandamos sin esperar a que aprieten "Parar".
       if (this.full) this.send();
     }
 

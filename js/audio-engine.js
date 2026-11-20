@@ -129,16 +129,10 @@ export class AudioEngine {
     }
   }
 
-  /**
-   * La salida de un nodo del tablero: "main" es la entrada de la cadena de efectos.
-   * OJO: acá NO usamos `effect.id` (que es el TIPO de efecto, ej. "distortion"):
-   * usamos `effect.nodeId`, que es el id ÚNICO de cada copia en el tablero. Si
-   * comparáramos por tipo, al conectar dos copias del mismo efecto la segunda
-   * nunca se encontraría y la Grabadora quedaría sin señal.
-   */
+  /** La salida de un nodo del tablero: "main" es la entrada de la cadena de efectos. */
   _outputOfNode(id) {
     if (id === "main") return this.effectsInput;
-    const fx = this.effects.find((effect) => effect.nodeId === id);
+    const fx = this.effects.find((effect) => effect.id === id);
     return fx ? fx.output : null;
   }
 
@@ -156,15 +150,6 @@ export class AudioEngine {
       effect.attach(this.ctx);
       this.rebuildChain();
     }
-  }
-
-  /**
-   * Saca un efecto del grafo de audio. Solo lo quita de la lista: main.js se
-   * encarga de recablear la cadena (setChain / setTaps) justo después de borrarlo.
-   */
-  removeEffect(effect) {
-    const index = this.effects.indexOf(effect);
-    if (index >= 0) this.effects.splice(index, 1);
   }
 
   /** Lee un archivo del disco, lo decodifica y se lo entrega al transporte. */

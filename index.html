@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  samplecast
+  SAMPLE LAB — Etapa 2
   Este archivo es el ESQUELETO de la página: define qué elementos existen.
   No tiene lógica; la lógica vive en js/main.js. El aspecto vive en css/style.css.
 
@@ -25,9 +25,7 @@
   <meta charset="utf-8">
   <!-- "viewport" hace que la página se adapte bien en celulares -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="samplecast: laboratorio de audio en el navegador. Cargá un sample, armá una cadena de efectos con cables y grabá o descargá el resultado, sin instalar nada.">
-  <title>samplecast</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <title>Sample Lab</title>
 
   <!-- Tipografías de Google Fonts. Si no hay internet, el navegador usa las de respaldo
        definidas en el CSS y todo sigue funcionando. -->
@@ -39,19 +37,16 @@
 </head>
 <body>
 
-  <!-- Aviso de compatibilidad: main.js lo muestra solo si falta Web Audio o AudioWorklet. -->
-  <div id="compat-warning" class="compat-warning" hidden></div>
-
   <!-- HUD: textos fijos que flotan sobre el espacio (no se mueven al navegar) -->
   <header class="hud">
     <!-- role="status": los lectores de pantalla anuncian los cambios de este texto -->
     <p id="status" class="status" role="status">Cargá un sample para empezar.</p>
+    <p class="hint">
+      Arrastrá un audio desde el escritorio hasta el nodo principal para cargarlo · Arrastrá el fondo para recorrer el espacio · Rueda del mouse para acercar · Arrastrá de un puerto ◯ a otro nodo para conectarlos · Arrastrá un cable al aire para desconectarlo · Clic sobre un cable también lo borra<br>
+      Sobre la forma de onda: un clic salta a esa posición y un arrastre marca el loop (se enciende solo) · El analizador se arrastra como cualquier nodo y se pliega con el botón ◀ · La Grabadora solo escucha y descarga un WAV<br>
+      Recorrido de la señal: sample → efectos → volumen → salida. El analizador mira justo antes de la salida.
+    </p>
   </header>
-
-  <!-- ================= BARRA LATERAL =================
-       Vive FUERA del mundo (position: fixed en el CSS), así que no se mueve ni
-       se agranda al recorrer el espacio. El contenido lo arma main.js. -->
-  <aside class="palette" id="palette" aria-label="Paleta de nodos"></aside>
 
   <main class="board" id="board">
 
@@ -65,7 +60,11 @@
         <!-- Píldora con la forma de onda -->
         <!-- data-no-drag: al arrastrar acá NO se mueve el nodo; se selecciona el loop -->
         <div class="node-body">
-          <canvas id="waveform" class="canvas-wave" data-no-drag title="Clic para saltar · Arrastrá para marcar el loop" aria-label="Forma de onda del sample. Un clic salta a esa posición; un arrastre marca el loop."></canvas>
+          <div class="wave-wrap">
+            <canvas id="waveform" class="canvas-wave" data-no-drag title="Clic para saltar · Arrastrá para marcar el loop" aria-label="Forma de onda del sample. Un clic salta a esa posición; un arrastre marca el loop."></canvas>
+            <!-- Cartel que invita a soltar un sample acá; main.js lo esconde al cargar un archivo. -->
+            <p class="drop-hint" id="drop-hint">Arrastrá tu sample acá</p>
+          </div>
           <p class="time-readout" id="time-readout">0:00.0 / 0:00.0</p>
         </div>
 
@@ -158,8 +157,5 @@
 
   <!-- type="module" permite usar import/export entre archivos .js -->
   <script type="module" src="js/main.js"></script>
-
-  <!-- Pie con el número de versión (la constante vive en js/main.js). -->
-  <footer class="app-version" id="app-version" aria-hidden="true"></footer>
 </body>
 </html>

@@ -1,9 +1,9 @@
-# AGENTS.md — reglas de samplecast
+# AGENTS.md — reglas de Sample Lab
 
 Instrucciones para cualquier agente (o persona) que trabaje en este proyecto.
 
 ## Qué es
-samplecast es un laboratorio de audio en el navegador: se carga un sample, se
+Sample Lab es un laboratorio de audio en el navegador: se carga un sample, se
 reproduce y se pasa por una cadena de efectos que se arma arrastrando cables en
 un tablero infinito. Es 100 % HTML, CSS y JavaScript puro.
 
@@ -56,5 +56,5 @@ un tablero infinito. Es 100 % HTML, CSS y JavaScript puro.
 ## Antes de dar algo por terminado
 - Consola del navegador **sin errores**.
 - Si se tocó audio: correr el banco de pruebas headless (Chrome + OfflineAudioContext)
-  que está en `%TEMP%\samplecast-check` y asegurarse de que quedan **0 fallas**.
+  que está en `%TEMP%\sample-lab-check` y asegurarse de que quedan **0 fallas**.
 - Verificar que no se rompió ninguna ruta relativa ni el nombre de un archivo.

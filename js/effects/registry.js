@@ -27,10 +27,6 @@
    main.js une cada slot con su clase mediante el objeto EFFECT_CLASSES.
    ========================================================= */
 
-import { MULTIBAND_OTT_PRESETS } from "./multiband-ott-presets.js";
-import { BITCRUSHER_PRESETS } from "./bitcrusher-presets.js";
-import { buildPresetOptions } from "./presets.js";
-
 export const EFFECT_SLOTS = [
   {
     id: "frequency-shift",
@@ -98,20 +94,6 @@ export const EFFECT_SLOTS = [
     ],
   },
   {
-    id: "flanger",
-    name: "Flanger",
-    summary: "Peine de retardos cortos barrido por un LFO: el barrido espacial de \"avión\".",
-    stage: 3,
-    available: true,
-    home: { x: 1500, y: -280 },
-    params: [
-      { id: "rate", label: "Rate", unit: "Hz", min: 0.05, max: 8, step: 0.05, value: 0.3 },
-      { id: "depth", label: "Depth", unit: "ms", min: 0, max: 3.5, step: 0.1, value: 2 },
-      { id: "feedback", label: "Feedback", unit: "%", min: 0, max: 100, step: 1, value: 50 },
-      { id: "mix", label: "Dry/Wet", unit: "%", min: 0, max: 100, step: 1, value: 100 },
-    ],
-  },
-  {
     id: "recorder",
     name: "Grabadora",
     summary: "Graba lo que le llega y lo descarga como WAV. No corta la señal.",
@@ -132,54 +114,6 @@ export const EFFECT_SLOTS = [
     params: [
       { id: "threshold", label: "Umbral", unit: "dB", min: -90, max: 0, step: 1, value: -50 },
       { id: "amount", label: "Intensidad", unit: "%", min: 0, max: 100, step: 1, value: 100 },
-      { id: "mix", label: "Dry/Wet", unit: "%", min: 0, max: 100, step: 1, value: 100 },
-    ],
-  },
-  {
-    id: "multiband-ott",
-    name: "Multiband OTT",
-    summary: "Compresión multibanda ascendente y descendente: denso, brillante y sin dinámica.",
-    stage: 4,
-    available: true,
-    home: { x: 720, y: 1900 },
-    params: [
-      {
-        id: "preset",
-        label: "Preset",
-        kind: "select",          // ← lista desplegable con los presets
-        value: "neutro",
-        options: buildPresetOptions(MULTIBAND_OTT_PRESETS),
-      },
-      { id: "depth", label: "Depth", unit: "%", kind: "slider", min: 0, max: 100, step: 1, value: 0 },
-      { id: "time", label: "Time", unit: "%", kind: "slider", min: 0, max: 100, step: 1, value: 50 },
-      { id: "low", label: "Low", unit: "dB", min: -12, max: 12, step: 0.5, value: 0 },
-      { id: "mid", label: "Mid", unit: "dB", min: -12, max: 12, step: 0.5, value: 0 },
-      { id: "high", label: "High", unit: "dB", min: -12, max: 12, step: 0.5, value: 0 },
-      { id: "out", label: "Out", unit: "dB", min: -24, max: 24, step: 0.5, value: 0 },
-      { id: "mix", label: "Dry/Wet", unit: "%", min: 0, max: 100, step: 1, value: 100 },
-    ],
-  },
-  {
-    id: "bitcrusher",
-    name: "Bitcrusher",
-    summary: "Baja la resolución de bits y la frecuencia de muestreo: sonido lo-fi y áspero.",
-    stage: 4,
-    available: true,
-    home: { x: 720, y: 2360 },
-    params: [
-      {
-        id: "preset",
-        label: "Preset",
-        kind: "select",          // ← lista desplegable con los presets
-        value: "neutro",
-        options: buildPresetOptions(BITCRUSHER_PRESETS),
-      },
-      // `decimals: 1` → el fader muestra SIEMPRE un decimal: "12.5 bits".
-      { id: "bits", label: "Bits", unit: "bits", kind: "slider", min: 1, max: 16, step: 0.1, value: 16, decimals: 1 },
-      // `log: true` → el fader va de 0 a 1 y el efecto lo convierte a Hz con
-      // escala LOGARÍTMICA (500 Hz → frecuencia del contexto). main.js muestra Hz/kHz.
-      { id: "rate", label: "Rate", unit: "Hz", kind: "slider", min: 0, max: 1, step: 0.001, value: 1, log: true },
-      { id: "out", label: "Out", unit: "dB", min: -24, max: 24, step: 0.5, value: 0 },
       { id: "mix", label: "Dry/Wet", unit: "%", min: 0, max: 100, step: 1, value: 100 },
     ],
   },

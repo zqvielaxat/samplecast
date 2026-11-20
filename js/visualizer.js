@@ -78,8 +78,6 @@ export class WaveformView {
    */
   render(progress, loop = null) {
     const { ctx, width, height } = fitCanvas(this.canvas);
-    // Ante un canvas oculto (tamaño 0) o valores raros, no dibujamos nada.
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
     ctx.clearRect(0, 0, width, height);
     const mid = height / 2;
 
@@ -88,8 +86,10 @@ export class WaveformView {
     ctx.fillRect(0, mid, width, 1);
 
     if (!this.buffer) {
-      // Sin sample cargado no escribimos ningún cartel: la píldora queda en
-      // blanco (el mismo color que su fondo), igual que antes de tocar "subir".
+      ctx.fillStyle = "#9b9ba1";
+      ctx.font = "14px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("La forma de onda aparece acá", width / 2, mid - 10);
       return;
     }
 
@@ -154,8 +154,6 @@ export class SpectrumVisualizer {
 
   draw() {
     const { ctx, width, height } = fitCanvas(this.canvas);
-    // Ante un canvas oculto (tamaño 0) o valores raros, no dibujamos nada.
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
     ctx.clearRect(0, 0, width, height);
 
     const analyser = this.engine.analyser; // es undefined hasta que se carga el primer sample

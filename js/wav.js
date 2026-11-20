@@ -3,7 +3,7 @@
 
    Convierte una lista de canales (Float32Array, valores entre −1 y 1) en un
    archivo WAV listo para descargar. Es el mismo formato que entienden todos los
-   reproductores y que samplecast puede volver a cargar con "Cargar sample".
+   reproductores y que Sample Lab puede volver a cargar con "Cargar sample".
 
    FORMATO DEL WAV
    ---------------

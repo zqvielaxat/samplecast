@@ -93,8 +93,6 @@ export class PatchBoard {
 
     this.onChange = null;      // main.js: "cambiaron las conexiones"
     this.onMessage = null;     // main.js: "mostrá este texto en la barra de estado"
-    this.selected = new Set(); // ids de los nodos seleccionados (varios a la vez)
-    this.selectRect = null;    // rectángulo de selección en curso (botón derecho)
 
     this._bindEvents();
     this.applyView();
@@ -129,9 +127,6 @@ export class PatchBoard {
       draggable: options.draggable !== false,
       locked: Boolean(options.locked),
       stage: options.stage ?? null,
-      // Solo los nodos de efectos se pueden borrar: el principal y el analizador
-      // quedan protegidos porque nunca marcan esta bandera.
-      deletable: options.deletable === true,
       ports: { in: null, out: null },
     };
 
@@ -149,103 +144,6 @@ export class PatchBoard {
 
   getNode(id) {
     return this.nodes.get(id) ?? null;
-  }
-
-  /** ¿Este nodo se puede seleccionar? Solo los efectos (borrables y movibles en grupo). */
-  isSelectable(id) {
-    const node = this.nodes.get(id);
-    return Boolean(node && node.deletable);
-  }
-
-  /** Refresca la marquita visual de selección de un nodo según el conjunto. */
-  _syncSelectionClass(id) {
-    const node = this.nodes.get(id);
-    if (node) node.el.classList.toggle("is-selected", this.selected.has(id));
-  }
-
-  /** Ids seleccionados (main.js lo usa para borrar todo el grupo con Supr). */
-  getSelectedIds() {
-    return [...this.selected];
-  }
-
-  /**
-   * Selección ÚNICA: deja seleccionado solo `id` (o nada si es null / inválido).
-   * El Shift+clic se maneja aparte con toggleSelect.
-   */
-  select(id) {
-    for (const selId of this.selected) {
-      if (selId === id) continue;
-      const node = this.nodes.get(selId);
-      if (node) node.el.classList.remove("is-selected");
-    }
-    this.selected.clear();
-
-    if (id != null && this.isSelectable(id)) {
-      this.selected.add(id);
-      this._syncSelectionClass(id);
-    }
-    return this.selected.has(id) ? id : null;
-  }
-
-  /** Shift + clic: agrega o quita UN nodo, sin tocar a los demás. */
-  toggleSelect(id) {
-    if (id == null || !this.isSelectable(id)) return false;
-    if (this.selected.has(id)) {
-      this.selected.delete(id);
-      this._syncSelectionClass(id);
-      return false;
-    }
-    this.selected.add(id);
-    this._syncSelectionClass(id);
-    return true;
-  }
-
-  /** Quita TODA la selección (clic en el fondo). */
-  clearSelection() {
-    for (const selId of this.selected) {
-      const node = this.nodes.get(selId);
-      if (node) node.el.classList.remove("is-selected");
-    }
-    this.selected.clear();
-  }
-
-  /** Reemplaza la selección por los ids dados (la usa el rectángulo de selección). */
-  setSelected(ids) {
-    for (const selId of this.selected) {
-      const node = this.nodes.get(selId);
-      if (node) node.el.classList.remove("is-selected");
-    }
-    this.selected.clear();
-    for (const id of ids) {
-      if (this.isSelectable(id)) this.selected.add(id);
-    }
-    for (const id of this.selected) this._syncSelectionClass(id);
-  }
-
-  /**
-   * Borra un nodo del tablero: saca sus cables, su elemento HTML y su registro.
-   * NO llama a onChange a propósito: quien borra (main.js) rearma la cadena de
-   * audio después, para hacerlo en el orden correcto.
-   */
-  removeNode(id) {
-    const node = this.nodes.get(id);
-    if (!node) return false;
-
-    // 1) Fuera los cables que entran o salen de este nodo.
-    this.wires = this.wires.filter((wire) => wire.from !== id && wire.to !== id);
-
-    // 2) Fuera el elemento del DOM.
-    node.el.remove();
-
-    // 3) Fuera del registro del tablero.
-    this.nodes.delete(id);
-
-    // 4) Lo sacamos de la selección (si estaba seleccionado).
-    this.selected.delete(id);
-
-    this.updatePorts();
-    this.dirty = true;
-    return true;
   }
 
   /** Crea el circulito del puerto y lo mete dentro del elemento del nodo. */
@@ -269,9 +167,8 @@ export class PatchBoard {
 
   /**
    * Hacia dónde apunta un puerto. Es SIEMPRE el mismo lugar del nodo: por
-   * defecto la entrada a la izquierda (180°) y la salida a la derecha (0°).
-   * Los dos ángulos caen sobre el eje horizontal, así que ambos puertos quedan
-   * a la MISMA ALTURA que el centro del nodo (ni más arriba ni más abajo).
+   * defecto la entrada arriba a la izquierda (−135°) y la salida abajo a la
+   * derecha (45°).
    *
    * Antes el puerto "miraba" al nodo vecino, para que el cable tocara el borde
    * justo en dirección al otro nodo. El problema: al arrastrar un nodo, los
@@ -280,7 +177,7 @@ export class PatchBoard {
    * clavados en su lugar y el cable simplemente sale y entra por ahí.
    */
   _portAngle(node, kind) {
-    const fallback = kind === "in" ? 180 : 0;
+    const fallback = kind === "in" ? -135 : 45;
     return deg(node.angles[kind] ?? fallback);
   }
 
@@ -515,21 +412,6 @@ export class PatchBoard {
         ctx.setLineDash([]);
       }
     }
-
-    // Rectángulo de selección (botón derecho): marco punteado translúcido.
-    if (this.selectRect) {
-      const x = Math.min(this.selectRect.x0, this.selectRect.x1);
-      const y = Math.min(this.selectRect.y0, this.selectRect.y1);
-      const w = Math.abs(this.selectRect.x1 - this.selectRect.x0);
-      const h = Math.abs(this.selectRect.y1 - this.selectRect.y0);
-      ctx.fillStyle = "rgba(23, 227, 60, 0.10)";
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeStyle = "#17e33c";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(x, y, w, h);
-      ctx.setLineDash([]);
-    }
   }
 
   /**
@@ -566,9 +448,6 @@ export class PatchBoard {
     // wheel con passive:false para poder frenar el scroll/zoom del navegador
     el.addEventListener("wheel", (event) => this._onWheel(event), { passive: false });
     window.addEventListener("resize", () => { this.dirty = true; });
-    // El botón derecho lo usamos para la selección rectangular: no queremos
-    // que aparezca el menú contextual del navegador.
-    el.addEventListener("contextmenu", (event) => event.preventDefault());
   }
 
   /** Devuelve el id del nodo que está justo debajo de un punto de la pantalla. */
@@ -579,28 +458,6 @@ export class PatchBoard {
 
   _onPointerDown(event) {
     this.pointer = { x: event.clientX, y: event.clientY };
-
-    // Botón DERECHO: arrastrar dibuja la selección rectangular. Shift + arrastre
-    // suma a lo ya elegido. El menú contextual se anula en _bindEvents.
-    if (event.button === 2) {
-      event.preventDefault();
-      this._capture(event);
-      this.drag = {
-        type: "select",
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        shift: event.shiftKey,
-      };
-      this.selectRect = {
-        x0: event.clientX,
-        y0: event.clientY,
-        x1: event.clientX,
-        y1: event.clientY,
-      };
-      this.dirty = true;
-      return;
-    }
 
     // 1) ¿Tocamos un puerto? → empezamos a tender (o a mover) un cable
     const port = event.target.closest?.(".port");
@@ -641,46 +498,27 @@ export class PatchBoard {
     //    nada. Si siguiéramos, le robaríamos el arrastre al control.
     if (onControl) return;
 
-    // 3) ¿Tocamos el cuerpo de un nodo? → seleccionamos y/o arrastramos.
+    // 3) ¿Tocamos el cuerpo de un nodo? → lo arrastramos
     if (nodeEl) {
       const node = this.nodes.get(nodeEl.dataset.node);
-      if (node) {
-        // Shift + clic = agregar/quitar este nodo de la selección, sin arrastrar.
-        if (event.shiftKey) {
-          event.preventDefault();
-          this.toggleSelect(node.id);
-          return;
-        }
-        // Clic normal: si el nodo ya estaba en una selección múltiple, la
-        // mantenemos y movemos TODO el grupo; si no, lo dejamos solo a él.
-        if (!(this.selected.size > 1 && this.selected.has(node.id))) {
-          this.select(node.id);
-        }
-        if (node.draggable) {
-          event.preventDefault();
-          this._capture(event);
-          // Posiciones iniciales de CADA nodo del grupo, para moverlos juntos.
-          const items = [];
-          for (const id of this.selected) {
-            const n = this.nodes.get(id);
-            if (n && n.draggable) items.push({ id, x0: n.x, y0: n.y });
-          }
-          if (items.length === 0) items.push({ id: node.id, x0: node.x, y0: node.y });
-          this.drag = {
-            type: "node",
-            pointerId: event.pointerId,
-            startX: event.clientX,
-            startY: event.clientY,
-            items,
-            moved: false,
-          };
-          return;
-        }
+      if (node && node.draggable) {
+        event.preventDefault();
+        this._capture(event);
+        this.drag = {
+          type: "node",
+          id: node.id,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          nodeX: node.x,
+          nodeY: node.y,
+          moved: false,
+        };
+        return;
       }
     }
 
-    // 4) Fondo → paneo (y un clic sin Shift quita la selección).
-    if (!event.shiftKey) this.clearSelection();
+    // 4) Fondo → paneo (y si no se mueve, un clic sobre un cable lo borra)
     event.preventDefault();
     this._capture(event);
     this.drag = {
@@ -719,31 +557,18 @@ export class PatchBoard {
       return;
     }
 
-    // --- Arrastre de nodo(s): movemos todo el grupo seleccionado a la vez ---
+    // --- Arrastre de nodo: el mouse se mueve en pantalla, el nodo en el mundo ---
     if (this.drag.type === "node") {
+      const node = this.nodes.get(this.drag.id);
+      if (!node) return;
       const dxScreen = event.clientX - this.drag.startX;
       const dyScreen = event.clientY - this.drag.startY;
       if (Math.hypot(dxScreen, dyScreen) > CLICK_TOLERANCE) this.drag.moved = true;
-      const dxWorld = dxScreen / this.view.scale; // dividimos por el zoom
-      const dyWorld = dyScreen / this.view.scale;
-      for (const item of this.drag.items) {
-        const node = this.nodes.get(item.id);
-        if (!node) continue;
-        node.x = item.x0 + dxWorld;
-        node.y = item.y0 + dyWorld;
-        node.el.style.left = `${node.x}px`;
-        node.el.style.top = `${node.y}px`;
-      }
+      node.x = this.drag.nodeX + dxScreen / this.view.scale; // dividimos por el zoom
+      node.y = this.drag.nodeY + dyScreen / this.view.scale;
+      node.el.style.left = `${node.x}px`;
+      node.el.style.top = `${node.y}px`;
       this.updatePorts();
-      this.dirty = true;
-      return;
-    }
-
-    // --- Selección rectangular en curso: actualizamos la esquina del marco ---
-    if (this.drag.type === "select") {
-      if (!this.selectRect) return;
-      this.selectRect.x1 = event.clientX;
-      this.selectRect.y1 = event.clientY;
       this.dirty = true;
       return;
     }
@@ -761,13 +586,6 @@ export class PatchBoard {
     this.boardEl.classList.remove("is-panning");
     if (!drag) return;
     try { this.boardEl.releasePointerCapture(event.pointerId); } catch { /* ya se liberó */ }
-
-    // Soltamos la selección rectangular: elegimos qué nodos quedan adentro.
-    if (drag.type === "select") {
-      this._finishRectSelection(drag);
-      this.dirty = true;
-      return;
-    }
 
     // Clic sin arrastre sobre el fondo: ¿tocó un cable? Entonces lo borramos.
     if (drag.type === "pan" && !drag.moved) {
@@ -791,41 +609,6 @@ export class PatchBoard {
       // restauró, idem. connect() ya avisó por su cuenta, repetirlo no molesta.
       this._afterChange();
       this.dirty = true;
-    }
-  }
-
-  /** Termina la selección rectangular: elige los nodos con centro dentro del marco. */
-  _finishRectSelection(drag) {
-    const rect = this.selectRect;
-    this.selectRect = null;
-    if (!rect) return;
-
-    const x0 = Math.min(rect.x0, rect.x1);
-    const x1 = Math.max(rect.x0, rect.x1);
-    const y0 = Math.min(rect.y0, rect.y1);
-    const y1 = Math.max(rect.y0, rect.y1);
-
-    // Fue un clic derecho sin arrastrar (marco casi nulo): no elegimos nada.
-    if (x1 - x0 < 3 && y1 - y0 < 3) {
-      if (!drag.shift) this.clearSelection();
-      return;
-    }
-
-    const ids = [];
-    for (const node of this.nodes.values()) {
-      if (!node.deletable) continue;
-      const p = this.worldToScreen(node.x, node.y);
-      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) ids.push(node.id);
-    }
-
-    if (drag.shift) {
-      // Shift = sumar al grupo actual.
-      for (const id of ids) {
-        if (this.isSelectable(id)) this.selected.add(id);
-      }
-      for (const id of this.selected) this._syncSelectionClass(id);
-    } else {
-      this.setSelected(ids);
     }
   }
 
