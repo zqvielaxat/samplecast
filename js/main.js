@@ -61,6 +61,7 @@ const els = {
   status: $("status"),
   btnRecenter: $("btn-recenter"),
   btnLoad: $("btn-load"),
+  btnLoadSample: $("btn-load-sample"),
   fileInput: $("file-input"),
   name: $("sample-name"),
   duration: $("sample-duration"),
@@ -1846,13 +1847,11 @@ function updatePlayButton() {
 
 /* ---------- 6) Eventos de la interfaz ---------- */
 
-// La flecha para arriba (cargar sample) "clickea" al input de archivo oculto
-els.btnLoad.addEventListener("click", () => els.fileInput.click());
-
-// Cuando el usuario elige un archivo. Flujo completo:
-//   change → engine.loadFile() → (ensureContext, decodificar, transport.setBuffer) → actualizar pantalla
-els.fileInput.addEventListener("change", async () => {
-  const file = els.fileInput.files[0];
+/**
+ * Carga un archivo de audio: lo decodifica y deja todo listo para reproducir.
+ * Lo usan tanto el selector de archivo como el arrastrar-y-soltar del nodo.
+ */
+async function loadAudioFile(file) {
   if (!file) return;
 
   setStatus("Decodificando audio…");
@@ -1874,9 +1873,47 @@ els.fileInput.addEventListener("change", async () => {
   } catch (error) {
     console.error(error);
     setStatus("No se pudo leer ese archivo. Probá con WAV, MP3 u OGG.");
-  } finally {
-    els.fileInput.value = ""; // permite volver a elegir el mismo archivo después
   }
+}
+
+// Tanto la flecha para arriba como el botón "Load sample" abren el selector de archivo.
+els.btnLoad.addEventListener("click", () => els.fileInput.click());
+els.btnLoadSample.addEventListener("click", () => els.fileInput.click());
+
+// Cuando el usuario elige un archivo desde el botón.
+els.fileInput.addEventListener("change", () => {
+  const file = els.fileInput.files[0];
+  els.fileInput.value = ""; // permite volver a elegir el mismo archivo después
+  loadAudioFile(file);
+});
+
+// --- Arrastrar-y-soltar un archivo de audio sobre el nodo principal ---
+
+// Sin esto, el navegador intentaría "abrir" el archivo si lo soltás fuera del nodo.
+document.addEventListener("dragover", (event) => event.preventDefault());
+document.addEventListener("drop", (event) => event.preventDefault());
+
+els.nodeMain.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.dropEffect = "copy";
+  els.nodeMain.classList.add("is-dragover");
+});
+
+els.nodeMain.addEventListener("dragleave", (event) => {
+  // dragleave se dispara también al pasar sobre un hijo; solo quitamos la marca
+  // si el cursor salió de verdad del nodo.
+  if (!els.nodeMain.contains(event.relatedTarget)) {
+    els.nodeMain.classList.remove("is-dragover");
+  }
+});
+
+els.nodeMain.addEventListener("drop", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  els.nodeMain.classList.remove("is-dragover");
+  const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+  loadAudioFile(file);
 });
 
 els.btnPlay.addEventListener("click", async () => {
