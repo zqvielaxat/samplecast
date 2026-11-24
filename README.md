@@ -20,6 +20,7 @@ compilación: es HTML, CSS y JavaScript puro (Web Audio API + Canvas 2D). Corre 
 ## Codigo libre
 
 - Samplecast es una herramienta de codigo libre pensada para seguir evolucionando y mutando a nuevas formas. el proximo paso es implementar nodos y funciones con I.A, quizas puedas ayudar! Tus ideas son bienvenidas para que el proyecto siga creciendo . ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧
+- el codigo esta todo comentado con explicaciones de la forma mas didactica posible, para que desarrolladores de todos los niveles puedar comprender la totalidad de sus funciones
 
 ## Navegadores soportados
 
