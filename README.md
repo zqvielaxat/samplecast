@@ -1,41 +1,25 @@
 # samplecast
 
-Un laboratorio de audio que corre **100 % en el navegador**. Cargás un sample, lo
-reproducís y lo pasás por una cadena de efectos que armás **arrastrando cables**
-en un tablero infinito, como un patch bay real. También grabás el resultado y lo
-descargás como WAV.
+samplecast es un laboratorio donde podes cargar samples y atravez de cadenas nodales de efectos al estilo
+patch bay velozmente crear variaciones y transmutar a nuevos sonidos. Seleccionar y slicear lo que quierasy donde quieras y descargargarlo como un sample pack.
+subís -> experimentas -> sliceás -> descargas.
 
-Está pensado para quien quiera **jugar y aprender** con audio sin instalar nada:
-músicos, curiosos, estudiantes. No hay frameworks, ni backend, ni paso de
-compilación: es HTML, CSS y JavaScript puro (Web Audio API + Canvas 2D).
+Está pensado como una herramienta practica e intuitiva para quienes quieran probar nuevos métodos de **creación de sonidos propios** y enriquecer sus librerías de samples. 
+NO HACE FALTA INSTALAR NADA! :
+ No hay frameworks, ni backend, ni paso de
+compilación: es HTML, CSS y JavaScript puro (Web Audio API + Canvas 2D). Corre todo en la web
 
 > ▶ **Probalo acá:** https://zqvielaxat.github.io/samplecast/
 
 ## Funciones
 
-- **Cargar** WAV / MP3 / OGG (mono o estéreo) y reproducirlo con transporte
-  (play, pausa, reiniciar, saltar) y control de **volumen**.
-- **Loop por arrastre** sobre la forma de onda.
-- **Grabadora**: graba lo que le llega, lo muestra como onda y lo **descarga como WAV**.
-- **Recorte (cut)**: elegís inicio y fin sobre la grabación y descargás solo ese trozo.
-- **Slices**: detección automática de cortes (ataques) para partir la grabación y
-  **descargar un pack** de WAV (uno por slice).
-- **Cadena de efectos** conectable con cables: Freq Shift, Distortion, Binscrambler,
+
+- **Efectos disponibles por el momento** : Freq Shift, Distortion, Binscrambler,
   Spectral Gate, Beat Repeater, Flanger, Multiband OTT y Bitcrusher.
-- **Presets**: cadenas listas (de fábrica) y presets propios guardados **en tu navegador**.
-- **Espacio infinito** con zoom/paneo y **analizador de espectro** en tiempo real.
 
-## La interfaz
+## Codigo libre
 
-- **Nodo principal "UR SAMPLE"**: la píldora con la forma de onda (clic = saltar,
-  arrastre = marcar loop) y los controles de transporte y volumen.
-- **Nodos de efectos**: tarjetas redondas con perillas, listas y faders, con un
-  puerto de entrada (◯) y uno de salida.
-- **Cables**: arrastrá de un puerto a otro nodo para conectar; arrastrá al aire o
-  hacé clic sobre un cable para desconectarlo.
-- **Barra lateral**: catálogo de efectos, **presets** (fábrica + los tuyos) y **Info**.
-- **Selección múltiple**: con el **botón derecho** (rectángulo) o **Shift + clic**,
-  para mover o borrar varios nodos juntos (tecla **Supr**).
+- Samplecast es una herramienta de codigo libre pensada para seguir evolucionando y mutando a nuevas formas. el proximo paso es implementar nodos y funciones con I.A, quizas puedas ayudar! Tus ideas son bienvenidas para que el proyecto siga creciendo . ദ്ദി(˵ •̀ ᴗ - ˵ ) ✧
 
 ## Navegadores soportados
 
@@ -71,13 +55,6 @@ npx serve .
 ```
 
 Después abrí `http://localhost:8000`.
-
-## Cómo publicarlo con GitHub Pages
-
-1. Subí el proyecto a GitHub. **`index.html` debe quedar en la raíz** del repo.
-2. **Settings → Pages → Deploy from a branch** → rama `main`, carpeta `/ (root)`.
-3. Las rutas ya son relativas y los `AudioWorklet` usan `import.meta.url`, así que
-   funciona igual bajo un subdirectorio o en la raíz del dominio.
 
 ## Privacidad
 
